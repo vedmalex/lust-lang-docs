@@ -154,6 +154,55 @@ dialog.lust-mermaid-dialog::backdrop {
   margin: 1rem 0;
 }
 
+/* Polished GFM / mdBook callout blocks (NOTE, TIP, IMPORTANT, WARNING, CAUTION) */
+.blockquote-tag {
+  margin: 1.35rem 0;
+  padding: 0.9rem 1.25rem;
+  border-inline-start-width: 4px;
+  border-inline-start-style: solid;
+  border-radius: 0 8px 8px 0;
+  background-color: var(--quote-bg);
+}
+
+.blockquote-tag-note {
+  background-color: color-mix(in srgb, var(--blockquote-note-color) 10%, var(--bg));
+}
+
+.blockquote-tag-tip {
+  background-color: color-mix(in srgb, var(--blockquote-tip-color) 10%, var(--bg));
+}
+
+.blockquote-tag-important {
+  background-color: color-mix(in srgb, var(--blockquote-important-color) 10%, var(--bg));
+}
+
+.blockquote-tag-warning {
+  background-color: color-mix(in srgb, var(--blockquote-warning-color) 10%, var(--bg));
+}
+
+.blockquote-tag-caution {
+  background-color: color-mix(in srgb, var(--blockquote-caution-color) 10%, var(--bg));
+}
+
+.blockquote-tag > .blockquote-tag-title {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.5rem 0;
+  font-weight: 600;
+}
+
+.blockquote-tag > .blockquote-tag-title svg {
+  margin-right: 0;
+  flex-shrink: 0;
+}
+
+.blockquote-tag > p:last-child,
+.blockquote-tag > ul:last-child,
+.blockquote-tag > ol:last-child {
+  margin-bottom: 0;
+}
+
 @media print {
   .lust-mermaid-actions {
     display: none;

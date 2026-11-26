@@ -2,7 +2,8 @@
 
 Lust provides strongly typed collections (`Array<T>` and `Map<K, V>`) alongside comprehensive standard library modules for strings and mathematics.
 
-> **Important Syntax Note:** Collections and primitive types in Lust do **not** use method dispatch (e.g. `arr:push()` is an error). Instead, use the corresponding module functions: `array.push(arr, ...)`, `map.get(map, ...)`, `string.len(str)`, and `math.floor(num)`.
+> [!IMPORTANT]
+> **No Method Dispatch on Collections or Primitives:** Collections and primitive types in Lust do **not** use method dispatch (e.g. `arr:push()` is an error). Instead, use the corresponding module functions: `array.push(arr, ...)`, `map.get(map, ...)`, `string.len(str)`, and `math.floor(num)`.
 
 ---
 

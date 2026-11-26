@@ -274,7 +274,8 @@ Bitwise operators operate on integer values (`int` / `i64`) with automatic shift
 | **SHL** | `a << b` | Left shift (`l << (r & 63)`) | `1 << 4 == 16` |
 | **SHR** | `a >> b` | Arithmetic right shift (preserves sign) | `-16 >> 2 == -4` |
 
-> **Note on XOR and `~=`:** Lust accepts both `^^` and `~` for binary XOR. However, `^^` is the canonical operator because `^^=` is supported for compound assignment, whereas `~=` is reserved for the inequality comparison operator (`!=`).
+> [!NOTE]
+> **XOR (`^^` vs `~`) and `~=`:** Lust accepts both `^^` and `~` for binary XOR. However, `^^` is the canonical operator because `^^=` is supported for compound assignment, whereas `~=` is reserved for the inequality comparison operator (`!=`).
 
 ---
 

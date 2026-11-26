@@ -136,6 +136,7 @@ Requirements declared in `~ (Req1 + Req2)` represent unsatisfied effect dependen
 
 Lust supports algebraic effect handlers in both the Bytecode VM (`Compiler::compile_module` / `VM::call`) and the Rust AOT (`AotCompiler::compile_source_rust` / `lust-aot-rt`) compiler. Code inside a `handle { ... } with { ... }` expression performs operations via `perform("OpName", [args...])`, and matching handler arms resume the delimited continuation with `resume(val)`:
 
+> [!NOTE]
 > **CLI TypeChecker note:** Full type inference for untyped handler arm parameters (such as `Step(x)` and `AskInt(v)` below) is still pending in `TypeChecker`. These handlers currently execute via the lower-level VM/AOT compiler APIs (`Compiler::compile_module` / `AotCompiler::compile_source_rust`, as exercised in `tests/ng_w17_handlers.rs`, `tests/ng_w13_1a_aot_services_tail_handlers.rs`, and `tests/ng_w13_1b_aot_async_nontail_handlers.rs`); invoking `lust run` on untyped arm arithmetic currently reports an unresolved parameter type `_`.
 
 ```lust,ignore

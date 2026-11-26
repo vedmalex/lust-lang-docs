@@ -1,7 +1,7 @@
 # Reactive Programming (Rx & Observables) in Lust
 
-> [!NOTE] Design Specification / RFC
-> This chapter describes the architectural specification for reactive programming and Observables in Lust.
+> [!NOTE]
+> **Design Specification / RFC:** This chapter describes the architectural specification for reactive programming and Observables in Lust.
 
 Lust provides a first-class Reactive Streams (Rx) subsystem designed for high-performance, asynchronous event streams, deterministic simulation, and real-time data processing.
 

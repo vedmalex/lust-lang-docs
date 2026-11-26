@@ -65,7 +65,8 @@ local int_box: Box<int> = Box { value = 100 }
 println("Box contains: " .. int_box:get()) -- 100
 ```
 
-> **Note on Impls:** Lust supports universal impl blocks (`impl<Item> Box<Item>`). Specialized impls (such as `impl Box<int>`) and conditional impls are not supported.
+> [!NOTE]
+> **Universal Impls Only:** Lust supports universal impl blocks (`impl<Item> Box<Item>`). Specialized impls (such as `impl Box<int>`) and conditional impls are not supported.
 
 ---
 
