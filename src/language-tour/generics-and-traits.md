@@ -124,6 +124,100 @@ render(r)
 
 Trait bounds are enforced statically at compile time with zero runtime dispatch cost.
 
+### Default Trait Methods
+
+Traits can supply default method bodies that reference `self`, other trait methods, and `Self`. Implementing types inherit default methods automatically or override them explicitly; missing required methods and ambiguous/conflicting trait method dispatch are rejected at compile time:
+
+```lust
+trait Describable
+    function tag(self): string
+
+    function describe(self): string
+        return "[" .. self:tag() .. "]"
+    end
+end
+
+struct Sensor
+    name: string
+end
+
+impl Describable for Sensor
+    function tag(self): string
+        return self.name
+    end
+    -- Inherits `describe(self)` automatically
+end
+```
+
+### Generic Traits
+
+Traits can be parameterized over type arguments (`trait Mapper<T>`, `trait Converter<In, Out>`). `impl` blocks supply concrete type arguments, and generic functions can constrain parameters with parameterized trait bounds. The typechecker enforces arity checks and coherence (rejecting duplicate or overlapping implementations):
+
+```lust
+trait Mapper<T>
+    function map(self, value: T): T
+
+    function map_twice(self, value: T): T
+        local once: T = self:map(value)
+        return self:map(once)
+    end
+end
+
+struct Doubler
+    factor: int
+end
+
+impl Mapper<int> for Doubler
+    function map(self, value: int): int
+        return value * self.factor
+    end
+end
+
+function apply_int_mapper<X: Mapper<int>>(m: X, v: int): int
+    return m:map_twice(v)
+end
+```
+
+### Associated Types
+
+Traits can declare abstract or defaulted associated types (`type Item;`, `type Label = string;`), bound in each `impl` block (`type Item = int;`). Associated types can be projected through `Self::Item`, bounded type parameters (`C::Item`), concrete types (`IntBox::Item`), or disambiguated trait paths (`<Dual as LeftAssoc>::Item`). Cyclic, unresolved, or ambiguous projections fail closed during typechecking, and `LBC1` bytecode wire serialization preserves associated-type projections (wire tag `29`):
+
+```lust
+trait Container
+    type Item;
+    type Label = string;
+
+    function get(self): Self::Item
+    function get_default(self): Self::Item
+        local v: Self::Item = self:get()
+        return v
+    end
+    function label(self): Self::Label
+end
+
+struct IntBox
+    value: int
+end
+
+impl Container for IntBox
+    type Item = int;
+
+    function get(self): Self::Item
+        return self.value
+    end
+
+    function label(self): Self::Label
+        return "intbox"
+    end
+end
+
+function extract<C: Container>(c: C): C::Item
+    return c:get_default()
+end
+```
+
+Default trait methods, generic traits, and associated types execute with byte-exact parity across all three runtime backends: Bytecode VM, native Cranelift JIT, and Rust AOT (`0` `unsafe`).
+
 ---
 
 ## Dynamic Trait Objects & Narrowing
@@ -175,7 +269,6 @@ println("Target location: " .. pt) -- Outputs: Target location: (12, 34)
 Because Lust generics are statically erased:
 - Trait methods currently require a leading `self` parameter.
 - `is` and `as` cannot target an erased type parameter (e.g. `val is Item` is rejected; test against concrete types or traits instead).
-- Generic traits and default trait method bodies are not currently supported.
 
 ---
 
