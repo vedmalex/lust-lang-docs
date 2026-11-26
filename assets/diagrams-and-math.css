@@ -1,0 +1,161 @@
+/* Theme mapping for Pele Mermaid SVG diagrams across all mdBook themes */
+.pele {
+  --pele-bg: var(--bg);
+  --pele-fg: var(--fg);
+  --pele-muted: var(--icons);
+  --pele-line: var(--icons-hover);
+  --pele-surface: var(--quote-bg);
+  --pele-surface-alt: var(--table-header-bg);
+  --pele-border: var(--theme-popup-border);
+  --pele-accent: var(--links);
+  --pele-critical: var(--blockquote-caution-color);
+  --pele-error: var(--blockquote-caution-color);
+  --pele-font: "Open Sans", sans-serif;
+  --pele-font-mono: var(--mono-font);
+  --pele-radius: 6px;
+  --pele-series-1: #0096cf;
+  --pele-series-2: #ffb454;
+  --pele-series-3: #09ca09;
+  --pele-series-4: #d3abff;
+  --pele-series-5: #f0b72f;
+  --pele-series-6: #74b9ff;
+  --pele-series-7: #f21424;
+  --pele-series-8: #8250df;
+}
+
+/* Mermaid diagram container */
+.lust-mermaid-block {
+  position: relative;
+  margin: 1.4rem 0;
+  padding: 3rem 1.25rem 1.25rem;
+  border: 1px solid var(--table-border-color);
+  border-radius: 8px;
+  background-color: var(--bg);
+}
+
+.lust-mermaid-actions {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.75rem;
+  display: inline-flex;
+  gap: 0.4rem;
+  opacity: 0.55;
+  transition: opacity 150ms ease;
+  z-index: 2;
+}
+
+.lust-mermaid-block:hover .lust-mermaid-actions,
+.lust-mermaid-block:focus-within .lust-mermaid-actions {
+  opacity: 1;
+}
+
+.lust-mermaid-btn {
+  appearance: none;
+  border: 1px solid var(--theme-popup-border);
+  background: var(--theme-popup-bg);
+  color: var(--fg);
+  font-family: "Open Sans", sans-serif;
+  font-size: 1.15rem;
+  line-height: 1;
+  padding: 0.35rem 0.65rem;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.lust-mermaid-btn:hover,
+.lust-mermaid-btn:focus-visible {
+  background: var(--theme-hover);
+  border-color: var(--links);
+  outline: none;
+}
+
+.lust-mermaid-canvas {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  overflow-x: auto;
+  min-height: 2rem;
+}
+
+.lust-mermaid-canvas > svg.pele {
+  max-width: 100%;
+  height: auto;
+}
+
+.lust-mermaid-source {
+  margin: 0.9rem 0 0;
+}
+
+.lust-mermaid-source[hidden] {
+  display: none;
+}
+
+.lust-mermaid-error {
+  margin: 0 0 0.75rem;
+  font-size: 1.3rem;
+  color: var(--blockquote-caution-color);
+}
+
+/* Fullscreen diagram modal */
+dialog.lust-mermaid-dialog {
+  max-width: min(94vw, 1280px);
+  max-height: 90vh;
+  width: min(94vw, 1280px);
+  padding: 1.25rem;
+  border: 1px solid var(--theme-popup-border);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+dialog.lust-mermaid-dialog::backdrop {
+  background: var(--overlay-bg);
+  backdrop-filter: blur(2px);
+}
+
+.lust-mermaid-dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+  font-size: 1.3rem;
+  color: var(--icons-hover);
+}
+
+.lust-mermaid-dialog-canvas {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 55vh;
+  max-height: 76vh;
+  overflow: hidden;
+  border: 1px solid var(--table-border-color);
+  border-radius: 6px;
+  background: var(--bg);
+}
+
+.lust-mermaid-dialog-canvas svg.pele {
+  max-width: 100%;
+  max-height: 74vh;
+  height: auto;
+}
+
+/* KaTeX typography & overflow protection inside mdBook */
+.katex {
+  font-size: 1.05em;
+}
+
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.35rem 0;
+  margin: 1rem 0;
+}
+
+@media print {
+  .lust-mermaid-actions {
+    display: none;
+  }
+}

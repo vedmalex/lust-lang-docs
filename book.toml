@@ -5,6 +5,13 @@ src = "src"
 title = "The Lust Book"
 
 [output.html]
-additional-js = ["src/lust-highlight.js"]
+additional-css = ["assets/katex.min.css", "assets/diagrams-and-math.css"]
+additional-js = [
+  "src/lust-highlight.js",
+  "assets/pele.global.js",
+  "assets/katex.min.js",
+  "assets/auto-render.min.js",
+  "assets/diagrams-and-math.js",
+]
 default-theme = "ayu"
 preferred-dark-theme = "ayu"

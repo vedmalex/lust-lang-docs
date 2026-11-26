@@ -283,7 +283,7 @@ pub struct FiberContinuation {
 
 The exploration scheduler orchestrates multi-fiber workloads:
 - **Ready Queue Shuffle:** Before selecting the next task, the ready queue is deterministically shuffled using Fisher-Yates driven by `StdRng` / `Pcg64`.
-- **Randomized Quantum:** Each step picks a quantum $Q \in [1, \text{max\_quantum}]$ instructions.
+- **Randomized Quantum:** Each step picks a quantum $Q \in [1, \text{max\\_quantum}]$ instructions.
 - **Zero-Wait Time Jumping:** If the ready queue is empty, the scheduler immediately advances virtual time to the next pending timer deadline (`advance_to_next_deadline()`), waking expired timers and placing fibers back in the ready queue.
 
 ### 4.3 Deterministic Race Condition Detection
