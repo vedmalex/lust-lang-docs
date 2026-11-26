@@ -1,23 +1,26 @@
 # Roadmap
 
-This roadmap summarizes the milestones shipped across Waves 0–18 as well as active and future development initiatives.
+This roadmap summarizes the milestones shipped across Waves 0–19 (including Stage 0 BEAM Readiness Hardening) as well as active and upcoming development initiatives.
 
 ---
 
-## Completed Milestones (Waves 0–18)
+## Completed Milestones (Waves 0–19)
 
 - [x] **Language Contract v2.0 & Full Lua 5.4 Operator Parity** &mdash; Complete mathematical and bitwise operator coverage (`//`, `^`, `&`, `|`, `~`, `<<`, `>>`, `^^`), right-associative exponentiation (`-2 ^ 2 == -4`), shift normalization, and 12 compound assignments (`+=` through `>>=`) with single-evaluation guarantees.
+- [x] **Full Trait System Across VM, Cranelift JIT & Rust AOT (`W19-8a/b/c`)** &mdash; Default trait methods with `Self` substitution and explicit overrides, generic traits (`trait Mapper<T>`, `impl Mapper<int> for Type`) with coherence and arity checks, and associated types (`type Item;`, `Self::Item`, `T::Item`, `<T as Trait>::Item`) with `LBC1` wire tag `29` — verified with byte-exact parity across Bytecode VM, native Cranelift JIT, and Rust AOT (`0` `unsafe`; `24/24` `ng_w19_8_traits` PASS).
 - [x] **Mid-Level IR (MIR), SROA & Optimization Pipeline** &mdash; SSA/CFG verification (`MirVerifier`), scalar replacement of aggregates (SROA), loop-body SROA, LICM, small-loop inlining, Q=64 loop strip-mining, 32-bit `PackedInstruction` ISA, and 4-slot VM polymorphic inline caches.
 - [x] **Cranelift JIT Backend & Dynasm Retirement** &mdash; Native machine code generation via Cranelift JIT 0.137 with production OSR, lazy deoptimization (`resume_from_deopt` including empty-stack entry validation), and complete retirement of the legacy Dynasm backend.
-- [x] **Cranelift Object AOT (`--backend cranelift-aot`)** &mdash; Opt-in (`--features cranelift-aot`) native `.o`/`.obj` emission and automatic `cc -llust` executable linking across 64-bit targets (`aarch64`, `x86_64`, `riscv64`, `s390x`) with SROA and post-SROA optimization.
-- [x] **Rust AOT & `#![no_std]` `lust-aot-rt` (`--backend rust`)** &mdash; Zero-dependency `#![no_std] + alloc` runtime crate (`lust-aot-rt`), CFG structurer, `#[repr(C)]` zero-DOM `decode_binary`/`decode_json`, Zero-FFI Cargo interop (`--emit=rust-crate`, `--link-crate`), ThinLTO (`--lto=thin`), and PGO (`--pgo-generate`, `--pgo-use`, `--pgo-sample-use`).
+- [x] **Cranelift Object AOT (`--backend cranelift-aot`) & `BENCH-NG-13` Speedup (`W19-9`)** &mdash; Opt-in (`--features cranelift-aot`) native `.o`/`.obj` emission and automatic `cc -llust` executable linking across 64-bit targets (`aarch64`, `x86_64`, `riscv64`, `s390x`) with SROA, native `__mir_struct_decode_into:*` with `SEC-02` memory budget enforcement, and profile-driven `BENCH-NG-13` speedups: CL-AOT `84.132 ms -> 18.848 ms` (**4.46×**), Cranelift JIT `54.765 ms -> 27.302 ms` (**2.01×**, `1.67×` faster than LuaJIT `45.718 ms`, 15/15 Suite v2 parity).
+- [x] **Rust AOT, `#![no_std]` `lust-aot-rt` & `--pgo-auto`/`--lto=auto` (`--backend rust`)** &mdash; Zero-dependency `#![no_std] + alloc` runtime crate (`lust-aot-rt`), CFG structurer, `#[repr(C)]` zero-DOM `decode_binary`/`decode_json`, Zero-FFI Cargo interop (`--emit=rust-crate`, `--link-crate`), ThinLTO (`--lto=thin`, `--lto=auto`), and PGO (`--pgo-generate`, `--pgo-use`, `--pgo-sample-use`, `--pgo-auto` achieving `6.863 ms -> 6.072 ms`, `-11.5%` on `BENCH-NG-13`).
 - [x] **Algebraic Effect Handlers (VM & Rust AOT CPS)** &mdash; Nominal services, `handle { ... } with { ... }`, tail-resumptive handlers, and one-shot non-tail continuations (`resume(val)`) lowered to a CPS state machine in Rust AOT (supporting loops and helper callees) alongside `AotScope` LIFO cleanup.
-- [x] **Borrowed Views, Static Lifetimes & Generation Safety (`lust::w17_lifetime`)** &mdash; Script-level `&T`/`&mut T` references and `view.{borrow, borrow_mut, read, materialize}`, compile-time diagnostics (`E4G001`–`E4G006`), runtime generation-checked handles (`LifetimeVm`, `GenStructHandle`, `PreparedScalarHandle`), and `!Send`-safe cross-thread `OwnedTransferPayload`.
+- [x] **Borrowed Views, Static Lifetimes, CLI View Bridge & Generation Safety (`lust::w17_lifetime`, `W19-2`)** &mdash; Script-level `&T`/`&mut T` references and `view.{borrow, borrow_mut, read, materialize}` wired into both `LifetimeVm`/`EmbeddedProgram` and standalone `lust` CLI startup, compile-time diagnostics (`E4G001`–`E4G006`), runtime generation-checked handles (`GenStructHandle`, `PreparedScalarHandle`), and `!Send`-safe cross-thread `OwnedTransferPayload`.
+- [x] **Multi-Threaded `VmPool` & `TransferableProgram` (`W19-5`)** &mdash; `#![forbid(unsafe_code)]` owned `Send + Sync` `TransferableProgram` and thread-affine `VmPool` with bounded queues, per-job gas/memory/timeout enforcement, cooperative VM safepoint cancellation, and graceful joined shutdown (`4.06×` scaling on 8 cores: `124.9 ms -> 30.8 ms`).
+- [x] **Stage 0 BEAM Readiness Hardening (`BH-A..D`)** &mdash; All 6/6 BEAM blockers (`BEAM-BLK-1..6`) and 52/53 deep audit bugs closed: `LBC1` wire format + `BytecodeVerifier` + `NativeSymbolTable`, VM self-containment (zero `EFFECT_*`/`ACTIVE_TRACE_HOOKS` TLS, shallow-cloned `BUILTINS_CACHE`, `VM::drop` sweep, unified `PortableRng`, `can_snapshot_safely()`), and 4-engine parity (`as int`, `string.byte`).
 - [x] **C11 Layout Parity & Semantic FFI Boundaries (`lust::w17_layout`)** &mdash; `LogicalLayoutV1`, `ContiguousStruct`, `Gate-SCHEMA-09`/`Gate-SCHEMA-13` verification, `ModelContract`, and watchdog-contained FFI boundary execution.
-- [x] **WASI Preview 1 & Preview 2 Execution (`lust-wasi-runner`)** &mdash; `wasm32-wasip1` and `wasm32-wasip2` targets compiled via Rust AOT (`lust-aot-rt`) and verified under embedded Wasmtime with `--fuel`, `--timeout-ms`, `--env`, `--dir-ro`, and `--deny-stdio`.
+- [x] **WASI Preview 1/2 Execution & Root WASI `std` Parity (`lust-wasi-runner`, `W19-4`)** &mdash; `wasm32-wasip1` and `wasm32-wasip2` targets compiled via Rust AOT (`lust-aot-rt`) and verified under embedded Wasmtime with `--fuel`, `--timeout-ms`, `--env`, `--dir-ro`, and `--deny-stdio`; root `lust-rs` compiles cleanly for `wasm32-wasip1 --no-default-features --features std` (`0` errors).
+- [x] **Full-Crate `#![no_std]` Core Cleanup & Tier-3 Embedded DST (`W19-10`)** &mdash; Core `lust-rs` `rlib` compiles cleanly under `--no-default-features` (`1,012 -> 0` errors on both host and ARM Cortex-M `thumbv7em-none-eabihf` `rlib`, zero `#[panic_handler]`/`#[global_allocator]` in `rlib`, `0` `std` regressions, `5/5` `ng_w19_10_nostd_parity`), alongside `src/no_std/trace.rs` (`DeterministicScheduler`, `CanonicalTraceCodec`, `replay_verify`), `StaticSlabAllocator`, `LustBudgetAlloc`, and live QEMU verification on ARM Cortex-M4 (`qemu-system-arm`) and RISC-V 32 (`qemu-system-riscv32`).
 - [x] **Multi-Tenant OS Sandbox (`lust::sandbox`)** &mdash; Darwin POSIX baseline plus Linux `S-SANDBOX` (`cgroups v2` `memory.max`/`cpu.max`/`pids.max`/`cgroup.kill` against `setsid()`, `seccomp-bpf`, and `CLONE_NEWNET` with `fork()` probe).
-- [x] **Tier-3 Embedded `#![no_std]` DST & Live Bare-Metal QEMU Verification** &mdash; `src/no_std/trace.rs` (`DeterministicScheduler`, `CanonicalTraceCodec`, `replay_verify`), `StaticSlabAllocator`, `LustBudgetAlloc`, and `OutOfGas` enforcement verified live on ARM Cortex-M4 (`thumbv7em-none-eabihf` via `qemu-system-arm`) and RISC-V 32 (`riscv32imafc-unknown-none-elf` via `qemu-system-riscv32`).
-- [x] **Ecosystem Bindings, Telemetry & Service Adapters** &mdash; Node.js bindings (`lust-napi` C Node-API v8 and `lust-napi-rs` `napi` v2), telemetry exporters (`lust-telemetry-{metrics,otel,prometheus,tracing}` with opt-in `--features upstream`), and built-in `hyper`/`rusqlite` plus opt-in `svc-reqwest`/`svc-sqlx` adapters.
+- [x] **Editor Tooling, LSP, PR CI & Ecosystem Adapters (`W19-1`, `W19-3`, `W19-6`, `W19-7`)** &mdash; Deterministic PR CI workflow (`.github/workflows/ci.yml`), `tree-sitter-lust` + `zed-extension` Waves 5–18 parity (`102/102` examples `0` `ERROR`), `lust-analyzer` indexing (`Schema`/`TypeAlias`/`Test`/`Suite`) and diagnostic `codeAction` quick-fixes (`54/54` PASS), Node.js bindings (`lust-napi`, `lust-napi-rs`), telemetry exporters (`lust-telemetry-*`), and public `lust::stdlib::services::{reqwest_adapter,sqlx_adapter}` re-exports under `--features svc-reqwest,svc-sqlx`.
 - [x] **Zig AOT & C-ABI Libraries** &mdash; Direct compilation to native executables, shared libraries (`--cdylib`), static libraries (`--staticlib`), and portable C-ABI headers (`--emit-h`).
 - [x] **Permissive Open-Source Licensing** &mdash; Dual-licensed under **MIT OR Apache-2.0**.
 
@@ -25,15 +28,10 @@ This roadmap summarizes the milestones shipped across Waves 0–18 as well as ac
 
 ## Active & Upcoming Initiatives
 
-- [ ] **LSP & Editor Tooling Expansion**
-  - Expand `lust-analyzer` with signature help, workspace symbol searches, rename refactoring, and quick-fix diagnostics.
-  - Extend `tree-sitter-lust` highlighting queries for borrowed views (`&T`/`&mut T`) and algebraic effect handlers.
+- [ ] **Wave 20 — BEAM-Style Lust VM (`BM-0.5`, `BM-1..BM-4`)**
+  - **`BM-0.5` (Effects-First Services & State Self-Containment):** Effects-First external service layer (`NetService`, `HttpService`, `DbService`, `MailboxService`), `LustConfig::beam_actor()`, and `VM::coord_state` migration.
+  - **`BM-1..BM-4` (Snapshots, Actors, Durable Replay & Live Migration):** `VmSnapshotV1` live process snapshotting, `LustNode` M:N actors and OTP supervision trees, Durable WAL Replay & OS Worker Jail, and Cross-Arch (`arm64 <-> x86_64`) plus bidirectional `native <-> wasm32/WASI` live VM migration.
 
-- [ ] **Multi-VM Worker Pool Ergonomics**
-  - High-level Rust orchestrators built over `OwnedTransferPayload` and `TransferTaskHandle` for ergonomics on multi-core workloads while preserving `!Send` VM isolation.
-
-- [ ] **Advanced Trait & Generic Features**
-  - Explore generic traits, associated types, and default trait method implementations.
-
-- [ ] **Continuous Compiler & AOT Optimizations**
-  - Broader PGO/ThinLTO heuristics across `lust build --backend rust` and extended cross-architecture CI coverage for `--backend cranelift-aot`.
+- [ ] **IDE & Toolchain Follow-Ups**
+  - Expand `lust-analyzer` with signature help and cross-file rename refactoring.
+  - Verify `tree-sitter-lust` WASI grammar compilation in environments with `WASI_SDK_PATH` installed, and perform physical hardware MCU flashing (`probe-rs`) alongside live QEMU verification.

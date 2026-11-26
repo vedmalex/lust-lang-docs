@@ -21,16 +21,16 @@ The `embed` module is available under the default `std` feature. Features that m
 
 | Feature | Default | Purpose |
 | --- | --- | --- |
-| `std` | yes | Required for the embedding API, Cranelift JIT, `w17_lifetime`, `w17_layout`, `sandbox`, and typed conversion layer. |
+| `std` | yes | Enables the embedding API, `VmPool`, Cranelift JIT, `w17_lifetime`, `w17_layout`, `sandbox`, and typed conversion layer. Without `std` (`--no-default-features --crate-type rlib`), core `lust-rs` (AST, parser, typechecker, bytecode, MIR IR, VM, `data`, `schema`, `model`) compiles cleanly as `#![no_std] + alloc` on host and ARM Cortex-M (`thumbv7em-none-eabihf`) with zero `#[panic_handler]`/`#[global_allocator]` injected into `rlib`. |
 | `packages` | yes | Pulls in `libloading`/`dirs`/`object`/`serde_json` for extension crates, Lua 5.1 libraries, and package resolution. |
 | `bindgen` | yes | Compile-time `@bindgen` Rust host binding generation (`lust::bindgen`). |
 | `net-services` | yes | Built-in `hyper` + `tokio` loopback HTTP/1.1 service (`HttpService`) and `rusqlite` SQLite integration. |
 | `cli-mimalloc` | yes | Global `mimalloc` allocator for the `lust` CLI binary. |
 | `cranelift-aot` | no | Opt-in Cranelift Object AOT backend (`--backend cranelift-aot`, `cranelift-object` across `aarch64`, `x86_64`, `riscv64`, `s390x`). |
-| `svc-reqwest` | no | Enables the optional `reqwest` dependency for the standalone capability-checked adapter source (`src/stdlib/services/reqwest_adapter.rs`, not yet re-exported from `lust::stdlib::services`). |
-| `svc-sqlx` | no | Enables the optional `sqlx` dependency for the standalone capability-checked SQLite adapter source (`src/stdlib/services/sqlx_adapter.rs`, not yet re-exported from `lust::stdlib::services`). |
+| `svc-reqwest` | no | Enables the optional `reqwest` dependency and publicly re-exports `lust::stdlib::services::reqwest_adapter` (`ReqwestAdapter`) when `net-services` is enabled. |
+| `svc-sqlx` | no | Enables the optional `sqlx` dependency and publicly re-exports `lust::stdlib::services::sqlx_adapter` (`SqlxAdapter`) when `net-services` is enabled. |
 | `telemetry-exporters` | no | Enables upstream `metrics`, `opentelemetry`, `opentelemetry_sdk`, and `prometheus` dependencies in `lust-rs`. |
-| `wasi` / `wasi-p2` | no | WASI capability/adapter types on `std` builds (WASI guest execution uses `lust-aot-rt` + `lust-wasi-runner`). |
+| `wasi` / `wasi-p2` | no | WASI capability/adapter types on `std` builds; root `lust-rs` compiles cleanly for `wasm32-wasip1 --no-default-features --features std` (`0` errors), while sandboxed WASI guest execution uses `lust-aot-rt` + `lust-wasi-runner`. |
 | `libloading` | no | Dynamic loading of native extensions (implied by `packages`). |
 | `dirs` | no | Platform package-cache directories (implied by `packages`). |
 
@@ -357,7 +357,7 @@ println!("Recursive calls:      {}", stats.recursive_calls);
 Lust enforces two complementary safety layers for zero-copy views across script code and Rust hosts:
 
 1. **Static Script Borrow Checking (`src/typechecker/lifetime.rs`):**
-   Scripts can take shared (`&expr`) and mutable (`&mut expr`) references and interact with them through the `view` runtime namespace (`view.borrow`, `view.borrow_mut`, `view.read`, `view.materialize`), installed on an `EmbeddedProgram` via `declare_view_externs` and `install_view_runtime`. Compile-time diagnostics (`E4G001`–`E4G006`) reject escaping borrows, closure captures of borrowed views, borrows crossing suspension/task boundaries, and owner mutations conflicting with active borrows.
+   Scripts can take shared (`&expr`) and mutable (`&mut expr`) references and interact with them through the `view` runtime namespace (`view.borrow`, `view.borrow_mut`, `view.read`, `view.materialize`), wired automatically into standalone `lust` CLI startup as well as `LifetimeVm::compile_script` (and available on custom `EmbeddedProgram` instances via `declare_view_externs` and `install_view_runtime`). Compile-time diagnostics (`E4G001`–`E4G006`) reject escaping borrows, closure captures of borrowed views, borrows crossing suspension/task boundaries, and owner mutations conflicting with active borrows.
 2. **Runtime Weak-VM & Generation Validation (`lust::w17_lifetime`):**
    Host handles created through `LifetimeVm` carry both a VM generation counter and an `OwnerId` lease so stale handles after VM teardown, owner destruction, or tenant switching fail closed with `LifecycleError` instead of reading freed or cross-tenant state:
 
@@ -391,11 +391,47 @@ std::thread::spawn(move || {
 ```
 
 > [!IMPORTANT]
-> **`!Send` VM & Views:** `VM`, `EmbeddedProgram`, `LifetimeVm`, and all borrowed handle/view types (`GenStructHandle`, `GenArrayHandle`, `GenMapHandle`, `ScopedViewGuard`, `PreparedScalarHandle`) are strictly **`!Send`**. They must stay pinned to the OS thread that created them. To send data to another worker thread, explicitly deep-materialize it into an `OwnedTransferPayload` (via `materialize_struct_for_transfer`, `materialize_array_for_transfer`, `materialize_map_for_transfer`, or `deep_materialize_to_data_value`) and optionally supervise the worker with `TransferTaskHandle`.
+> **`!Send` VM & Views:** `VM`, `EmbeddedProgram`, `LifetimeVm`, and all borrowed handle/view types (`GenStructHandle`, `GenArrayHandle`, `GenMapHandle`, `ScopedViewGuard`, `PreparedScalarHandle`) are strictly **`!Send`**. They must stay pinned to the OS thread that created them. To send data to another worker thread, explicitly deep-materialize it into an `OwnedTransferPayload` (via `materialize_struct_for_transfer`, `materialize_array_for_transfer`, `materialize_map_for_transfer`, or `deep_materialize_to_data_value`), or execute across cores with `VmPool` and `TransferableProgram`.
+
+### Multi-Threaded Worker Pool (`VmPool` & `TransferableProgram`)
+
+For multi-core workloads without sacrificing `!Send` VM isolation, `lust::embed::pool` (re-exported from `lust::embed`) provides a **`#![forbid(unsafe_code)]`** compile-once, execute-many worker pool (`4.06×` measured scaling on 8 cores, `124.9 ms -> 30.8 ms`):
+
+- **`TransferableProgram` (`Send + Sync`):** Converts compiled bytecode (`CompiledBytecode`) into immutable, owned constant descriptors (`TransferableConstant`) with zero `unsafe impl Send / Sync`. Supports verified `LBC1` wire serialization (`to_wire_bytes()` / `from_wire_bytes_verified(bytes, config)` backed by `BytecodeVerifier` and `NativeSymbolTable`).
+- **`VmPool` & `VmPoolBuilder`:** Spawns dedicated OS worker threads that each materialize their own thread-affine, self-contained `VM` once at startup (zero `EFFECT_*`/`ACTIVE_TRACE_HOOKS` TLS, shallow-cloned `BUILTINS_CACHE`, `VM::drop` resource sweep, unified `PortableRng`, and `can_snapshot_safely()` introspection).
+- **Bounded Execution & Cooperative Cancellation:** Configure worker count, bounded queue capacity, `SaturationPolicy::{Block, Reject}`, per-job gas/memory limits, and wall-clock timeouts. Timeouts and `JobHandle::cancel()` set a per-job atomic interrupt flag observed at VM safepoints so workers unwind cleanly, reset per-job state, and stay healthy for subsequent jobs. `shutdown()` drains queued jobs and joins all worker threads; `shutdown_now()` cooperatively cancels queued and in-flight jobs before joining.
+
+```rust
+use std::sync::Arc;
+use std::time::Duration;
+use lust::data::{DataValue, ExactNumber};
+use lust::embed::{SaturationPolicy, TransferableProgram, VmPool};
+use lust::EmbeddedProgram;
+
+let program = Arc::new(TransferableProgram::from_builder(
+    EmbeddedProgram::builder()
+        .module("main", "function work(n: int): int return n * n end")
+        .entry_module("main"),
+)?);
+
+let pool = VmPool::builder(Arc::clone(&program))
+    .workers(4)
+    .queue_capacity(64)
+    .saturation_policy(SaturationPolicy::Block)
+    .gas_limit(Some(1_000_000))
+    .memory_limit(Some(16 * 1024 * 1024))
+    .timeout(Some(Duration::from_secs(2)))
+    .build()?;
+
+let out = pool.call("main.work", vec![DataValue::Number(ExactNumber::Int(12))])?;
+assert_eq!(out, DataValue::Number(ExactNumber::Int(144)));
+
+pool.shutdown();
+```
 
 ### WebAssembly & WASI
 
-For sandboxed WebAssembly deployments targeting WASI Preview 1 (`wasm32-wasip1`) or WASI Preview 2 (`wasm32-wasip2`), compile scripts with `lust build --backend rust --target wasm32-wasip1|wasm32-wasip2` (backed by the `#![no_std]` `lust-aot-rt` runtime) and execute them through `lust-wasi-runner`. See [WebAssembly & WASI](./tooling.md#webassembly--wasi-preview-1--preview-2) for full CLI flags and capability options.
+For sandboxed WebAssembly deployments targeting WASI Preview 1 (`wasm32-wasip1`) or WASI Preview 2 (`wasm32-wasip2`), compile scripts with `lust build --backend rust --target wasm32-wasip1|wasm32-wasip2` (backed by the `#![no_std]` `lust-aot-rt` runtime) and execute them through `lust-wasi-runner`. Root `lust-rs` also compiles cleanly for `wasm32-wasip1 --no-default-features --features std` (`0` errors). See [WebAssembly & WASI](./tooling.md#webassembly--wasi-preview-1--preview-2) for full CLI flags and capability options.
 
 ### Async & Tokio Concurrency
 
@@ -455,10 +491,10 @@ Lust provides capability-checked host service adapters that enforce `LustConfig:
 - **Built-in (`--features net-services`, enabled by default):**
   - `lust::stdlib::services::HttpService` & `LoopbackHttpServer` — Built on `hyper` + `tokio` for HTTP/1.1 client/server operations.
   - Built-in SQLite connection registry backed by `rusqlite`.
-- **Opt-in external adapter sources (`--features svc-reqwest,svc-sqlx`):**
-  - **`ReqwestAdapter`** (`src/stdlib/services/reqwest_adapter.rs`, gated behind `#[cfg(feature = "svc-reqwest")]`) — Bounded `reqwest` HTTP client (`ReqwestAdapter::get(config, url, timeout, cancel)`) verifying `check_net_capability` before client construction and honoring `CancelToken` and a 30 s maximum timeout cap.
-  - **`SqlxAdapter`** (`src/stdlib/services/sqlx_adapter.rs`, gated behind `#[cfg(feature = "svc-sqlx")]`) — Async `sqlx` SQLite pool adapter (`SqlxAdapter::connect`, `SqlxAdapter::execute`, `SqlxAdapter::transaction`) requiring `allow_fs` for non-`:memory:` URLs, parameterized queries, and automatic rollback-on-error transactions.
-  - *Crate export note:* Both `reqwest_adapter.rs` and `sqlx_adapter.rs` are currently standalone opt-in adapter modules included via `#[path = ...]` in integration tests (`tests/ng_w17_services.rs`) rather than re-exported from `lust::stdlib::services`; `services.backend_status` continues to report the built-in `hyper` / `rusqlite` backends as the default crate exports.
+- **Opt-in public external adapters (`--features svc-reqwest,svc-sqlx`, with `net-services`):**
+  - **`lust::stdlib::services::reqwest_adapter::ReqwestAdapter`** (gated behind `#[cfg(all(feature = "net-services", feature = "svc-reqwest"))]`) — Bounded `reqwest` HTTP client (`ReqwestAdapter::get(config, url, timeout, cancel)`) verifying `check_net_capability` before client construction and honoring `CancelToken` and a 30 s maximum timeout cap.
+  - **`lust::stdlib::services::sqlx_adapter::SqlxAdapter`** (gated behind `#[cfg(all(feature = "net-services", feature = "svc-sqlx"))]`) — Async `sqlx` SQLite pool adapter (`SqlxAdapter::connect`, `SqlxAdapter::execute`, `SqlxAdapter::transaction`) requiring `allow_fs` for non-`:memory:` URLs, parameterized queries, and automatic rollback-on-error transactions.
+  - Both adapter modules are publicly re-exported from `lust::stdlib::services` when their respective Cargo features are enabled alongside `net-services`; default builds without those features continue to expose only the built-in `hyper` / `rusqlite` backends.
 
 ---
 

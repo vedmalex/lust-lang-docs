@@ -73,25 +73,27 @@ lust build firmware.lust --backend rust --no-std --target thumbv7em-none-eabihf 
 # Enable gas metering (none, loop-chunked, exact) and a gas budget
 lust build job.lust --backend rust --gas-metering loop-chunked --gas-limit 1000000 -o job
 
-# Profile-Guided Optimization (instrumented or sample-based)
+# Profile-Guided Optimization (manual two-stage, sample-based, or automated `--pgo-auto`)
 lust build app.lust --backend rust --pgo-generate=/tmp/pgo-data -o app_prof
 ./app_prof
 lust build app.lust --backend rust --pgo-use=/tmp/merged.profdata -o app_opt
 lust build app.lust --backend rust --pgo-sample-use=/tmp/sample.prof -o app_sample_opt
+lust build app.lust --backend rust --pgo-auto --pgo-workload-args "" --lto=auto -o app_auto_opt
 ```
 
 Key `--backend rust` options:
 - `--emit=rust-crate` (or `--emit-rust-crate`) — Generates a self-contained Cargo library crate (`Cargo.toml` + `src/lib.rs`) depending on `lust-aot-rt`.
 - `--emit-rs` — Emits generated Rust source without invoking `rustc`.
 - `--link-crate <dir|rlib>` — Links an external Rust crate directly via Zero-FFI `.rlib` + ThinLTO.
-- `--lto=thin` — Enables ThinLTO across the emitted module, `lust-aot-rt`, and linked crates.
-- `--pgo-generate[=<dir>]`, `--pgo-use=<profdata>`, `--pgo-sample-use=<profile>` — Instrumented and sample-based PGO pipelines.
+- `--lto=<off|thin|auto>` — Controls ThinLTO across the emitted module, `lust-aot-rt`, and linked crates (`auto` applies a deterministic heuristic for linked crates / PGO builds).
+- `--pgo-generate[=<dir>]`, `--pgo-use=<profdata>`, `--pgo-sample-use=<profile>` — Manual instrumented and sample-based PGO pipelines.
+- `--pgo-auto` with `--pgo-workload-args <args>` (use `""` for no args) or `--pgo-workload-arg <arg>` — Opt-in two-stage automated PGO pipeline (instrumented build -> workload run -> `llvm-profdata` merge -> optimized rebuild in isolated temp paths, with fail-closed error propagation; verified `-11.5%` on `BENCH-NG-13`: `6.863 ms -> 6.072 ms` with `--lto=auto`).
 - `--gas-metering <none|loop-chunked|exact>` & `--gas-limit <units>` — Deterministic execution gas metering.
 - `--no-std`, `--target <triple>`, `--cache-dir <dir>` — Cross-target and bare-metal builds.
 
 #### 2. Cranelift Object AOT Backend (`--backend cranelift-aot`)
 
-Compiles Lust MIR directly to native object files or linked executables using `cranelift-object` (no `rustc` or `zig` invocation required). This backend is opt-in and requires building `lust` with `--features cranelift-aot`:
+Compiles Lust MIR directly to native object files or linked executables using `cranelift-object` (no `rustc` or `zig` invocation required), including native `__mir_struct_decode_into:*` lowering with `SEC-02` memory budget enforcement (verified across all 15/15 Suite v2 workloads, achieving `4.46×` speedup on `BENCH-NG-13`: `84.132 ms -> 18.848 ms`, alongside `2.01×` on Cranelift JIT `54.765 ms -> 27.302 ms`, `1.67×` faster than LuaJIT `45.718 ms`). This backend is opt-in and requires building `lust` with `--features cranelift-aot`:
 
 ```bash
 # Build lust with Cranelift Object AOT enabled
@@ -135,7 +137,7 @@ lust build sandbox.lust --backend zig --cdylib --max-memory 64MB -o libsandbox.d
 Lust targets WebAssembly **WASI Preview 1** (`wasm32-wasip1`) and **WASI Preview 2** (`wasm32-wasip2`) via the **`--backend rust` (`lust-aot-rt`)** compilation path together with the workspace **`lust-wasi-runner`** harness (embedded Wasmtime 50, supporting both core WASI P1 modules and WASI P2 components).
 
 > [!NOTE]
-> The WASI execution path is **`lust-aot-rt` + `lust-wasi-runner`** (compiling Lust scripts to `.wasm` via `--backend rust --target wasm32-wasip1` or `wasm32-wasip2`). The root `lust-rs` interpreter/JIT library crate remains `std`-coupled for host execution.
+> The sandboxed WASI guest execution path is **`lust-aot-rt` + `lust-wasi-runner`** (compiling Lust scripts to `.wasm` via `--backend rust --target wasm32-wasip1` or `wasm32-wasip2`). In addition, the root `lust-rs` crate compiles cleanly for `wasm32-wasip1 --no-default-features --features std` (`0` errors) and as a `#![no_std] + alloc` `rlib` on both host and ARM Cortex-M (`thumbv7em-none-eabihf`, `0` errors, zero `#[panic_handler]`/`#[global_allocator]` in `rlib`).
 
 ```bash
 # 1. Compile a Lust script to a WASI Preview 1 or Preview 2 artifact
@@ -266,12 +268,11 @@ Install the official language server:
 cargo install lust-analyzer
 ```
 
-`lust-analyzer` implements the Language Server Protocol (LSP), providing:
-- Real-time syntax and type error diagnostics.
-- Autocompletion for variables, functions, and module exports.
-- Hover information displaying inferred types and function signatures.
-- Jump to definition across multi-file projects.
+`lust-analyzer` implements the Language Server Protocol (LSP), providing (`54/54` tests PASS):
+- Real-time syntax, type, and lifetime (`E4G001`–`E4G006`) diagnostics.
+- Workspace symbol indexing, go-to-definition, hover, and cross-file autocompletion across functions, structs, enums, traits, `schema` declarations, `type` aliases, `test`, and `suite` blocks.
+- Range-accurate, semantics-preserving `textDocument/codeAction` quick-fixes strictly backed by compiler diagnostics.
 
-### Tree-Sitter (`tree-sitter-lust`)
+### Tree-Sitter (`tree-sitter-lust`) & Zed Extension (`zed-extension`)
 
-A Tree-sitter grammar is available at `tree-sitter-lust` in the official repository, providing fast, syntax-aware highlighting for modern editors including Neovim, Helix, Emacs, and VS Code.
+`tree-sitter-lust` and `zed-extension` track full Waves 5–18 language syntax and highlighting parity (effects, `defer`/`errdefer`/`scoped`, `schema`, `type` aliases, `typeof`, regex literals, pipe `|>`, borrowed views `&T`/`&mut T`, `test`/`suite`, `#` comments, and Lua 5.4 operators), verified across `102/102` repository examples with `0` `ERROR` parse nodes for Zed, Neovim, Helix, Emacs, and VS Code.
